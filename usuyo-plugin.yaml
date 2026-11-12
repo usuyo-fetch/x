@@ -1,6 +1,7 @@
 # X（推特）获取插件（设计见 usuyo 仓库 docs/platforms/x.md）。
-# 单条帖子不用账号：访客令牌调帖子接口，被限流或被拒时退到嵌入用的 syndication 接口。
-# 书签和喜欢由 userscript/ 里的脚本在你的浏览器里交链接给 usuyo；list 只读你下载的官方归档。
+# 几种方法各列一项（usuyo 协议 §2.3.1），没做的也列；行和 README 的方法表、usuyo 仓库 docs/platforms/routes.md 第 6 节对应。
+# 单条帖子不用账号：访客令牌调帖子接口，它被拒时宿主换嵌入用的 syndication 接口。
+# 书签和喜欢由 userscript/ 里的脚本在你的浏览器里交链接给 usuyo；archive 读你下载的官方归档。
 protocol: 1
 id: usuyo-fetch/x
 kind: fetch
@@ -25,19 +26,78 @@ match:
   - "t.co/*"
   - "fxtwitter.com/*"
   - "fixupx.com/*"
-access: public-web
-login: none
-capabilities:
-  fetch:
+methods:
+  - id: guest
+    name: 访客接口
     access: public-web
     login: none
-    timeout: 30m
-    outputs: [text, images, media:video, meta]
-  list:
+    account: none
+    risk:
+      text: 访客令牌在有的出口被拒
+      source: {label: "gallery-dl #9505", url: "https://github.com/mikf/gallery-dl/issues/9505"}
+    capabilities:
+      fetch:
+        timeout: 30m
+        outputs: [text, images, media:video, meta]
+  - id: embed
+    name: 嵌入接口
+    access: public-web
+    login: none
+    account: none
+    capabilities:
+      fetch:
+        timeout: 30m
+        outputs: [text, images, media:video, meta]
+  - id: userscript
+    name: 浏览器脚本（书签、喜欢）
+    access: browser-session
+    login: required
+    account: own-browser
+    delivers: links
+    risk:
+      text: 没有使用者被锁的报告
+      source: {label: "调研 06 §16.2", url: "https://github.com/usuyo/usuyo/blob/main/docs/research/06-platform-access-and-account-risk.md#162-issue-里的账号问题"}
+  - id: archive
+    name: 官方归档
     access: official-export
     login: none
-    order: unordered
-    files: ["twitter-*.zip"]
+    account: none
+    capabilities:
+      list:
+        order: unordered
+        files: ["twitter-*.zip"]
+  - id: deliver-content
+    name: 内容投递
+    built: false
+    access: browser-session
+    login: required
+    account: own-browser
+    delivers: links
+  - id: session
+    name: 会话接口
+    built: false
+    access: session-api
+    login: required
+    account: in-usuyo
+  - id: signed
+    name: 签名接口
+    built: false
+    access: private-api
+    login: required
+    account: in-usuyo
+  - id: xurl
+    name: 官方 API（xurl）
+    built: false
+    access: official-export
+    login: required
+    account: developer
+  - id: iphone
+    name: 手机镜像
+    built: false
+    access: vision-ui
+    login: required
+    account: own-phone
+    interaction: foreground
 pacing:
   x: {batch: true, interval: 10s, daily: 300}
 permissions:

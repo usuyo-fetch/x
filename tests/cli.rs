@@ -104,13 +104,22 @@ fn fetch_errors_before_any_request() {
             "https://x.com/i/spaces/1YqKDqDXAbwKV",
             "--out",
             out_dir,
+            "--method",
+            "guest",
         ],
         None,
     );
     assert_eq!(out.status.code(), Some(1));
     assert_eq!(envelope(&out)["error"]["code"], "unsupported-input");
     let out = plugin(
-        &["fetch", "https://x.com/a/status/1", "--out", "relative/dir"],
+        &[
+            "fetch",
+            "https://x.com/a/status/1",
+            "--out",
+            "relative/dir",
+            "--method",
+            "embed",
+        ],
         None,
     );
     assert_eq!(envelope(&out)["error"]["code"], "invalid-args");
@@ -120,11 +129,30 @@ fn fetch_errors_before_any_request() {
             "https://x.com/a/status/1",
             "--out",
             out_dir,
+            "--method",
+            "guest",
             "--want",
             "comments",
         ],
         None,
     );
+    assert_eq!(envelope(&out)["error"]["code"], "invalid-args");
+    // 没做的方法、不在插件里跑的方法：不发请求
+    for method in ["session", "userscript", "archive"] {
+        let out = plugin(
+            &[
+                "fetch",
+                "https://x.com/a/status/1",
+                "--out",
+                out_dir,
+                "--method",
+                method,
+            ],
+            None,
+        );
+        assert_eq!(envelope(&out)["error"]["code"], "invalid-args", "{method}");
+    }
+    let out = plugin(&["list", "file:twitter-x.zip", "--method", "guest"], None);
     assert_eq!(envelope(&out)["error"]["code"], "invalid-args");
     assert!(std::fs::read_dir(dir.path()).unwrap().next().is_none());
 }
@@ -152,7 +180,12 @@ fn list_reads_likes_and_bookmarks_from_the_archive() {
     let dir = tempfile::tempdir().unwrap();
     let zip = archive(dir.path(), &["bookmark.js", "like-part1.js", "like.js"]);
     let out = plugin(
-        &["list", "file:twitter-2026-11-01-0123abcd.zip"],
+        &[
+            "list",
+            "file:twitter-2026-11-01-0123abcd.zip",
+            "--method",
+            "archive",
+        ],
         Some(&zip),
     );
     assert!(out.status.success(), "{out:?}");
@@ -221,7 +254,7 @@ fn list_pages_and_refuses_what_it_cannot_read() {
     let mut seen = 0;
     let mut pages = 0;
     loop {
-        let mut args = vec!["list", "file:twitter-big.zip"];
+        let mut args = vec!["list", "file:twitter-big.zip", "--method", "archive"];
         if let Some(c) = &cursor {
             args.extend(["--cursor", c.as_str()]);
         }
@@ -238,18 +271,32 @@ fn list_pages_and_refuses_what_it_cannot_read() {
     // 不是 zip、zip 里没有喜欢和书签、没有交文件
     let not_zip = dir.path().join("twitter-x.zip");
     std::fs::write(&not_zip, b"hello").unwrap();
-    let value = envelope(&plugin(&["list", "file:twitter-x.zip"], Some(&not_zip)));
+    let value = envelope(&plugin(
+        &["list", "file:twitter-x.zip", "--method", "archive"],
+        Some(&not_zip),
+    ));
     assert_eq!(value["error"]["code"], "unsupported-input");
     let empty = archive(dir.path(), &[]);
     let value = envelope(&plugin(
-        &["list", "file:twitter-2026-11-01-0123abcd.zip"],
+        &[
+            "list",
+            "file:twitter-2026-11-01-0123abcd.zip",
+            "--method",
+            "archive",
+        ],
         Some(&empty),
     ));
     assert_eq!(value["error"]["code"], "unsupported-input");
     assert!(value["error"]["hint"].as_str().unwrap().contains("归档"));
-    let value = envelope(&plugin(&["list", "file:twitter-x.zip"], None));
+    let value = envelope(&plugin(
+        &["list", "file:twitter-x.zip", "--method", "archive"],
+        None,
+    ));
     assert_eq!(value["error"]["code"], "invalid-args");
-    let value = envelope(&plugin(&["list", "x:bookmarks"], Some(&empty)));
+    let value = envelope(&plugin(
+        &["list", "x:bookmarks", "--method", "archive"],
+        Some(&empty),
+    ));
     assert_eq!(value["error"]["code"], "invalid-args");
 }
 
@@ -271,6 +318,7 @@ fn health_answers_without_requests() {
 fn usage_errors_exit_2() {
     for args in [
         &["fetch"][..],
+        &["fetch", "https://x.com/a/status/1", "--out", "/o"][..],
         &["sources"][..],
         &["health", "--x"][..],
         &["list"][..],
@@ -306,7 +354,32 @@ fn manifest_loads_in_the_host_and_routes_every_link_shape() {
     assert!(spec.sites.is_empty());
     assert!(spec.visitors.is_empty());
     assert!(found.fetch[0].header.settings.is_empty());
-    let list = spec.capabilities.list.as_ref().unwrap();
+    // README 的方法表一行一种，做了的四种：访客、嵌入、浏览器脚本、官方归档
+    let ids: Vec<&str> = spec.methods.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            "guest",
+            "embed",
+            "userscript",
+            "archive",
+            "deliver-content",
+            "session",
+            "signed",
+            "xurl",
+            "iphone"
+        ]
+    );
+    let built: Vec<&str> = spec.built().map(|m| m.id.as_str()).collect();
+    assert_eq!(built, ["guest", "embed", "userscript", "archive"]);
+    assert!(!spec.method("signed").unwrap().on_by_default());
+    let list = spec
+        .method("archive")
+        .unwrap()
+        .capabilities
+        .list
+        .as_ref()
+        .unwrap();
     assert_eq!(list.files, ["twitter-*.zip"]);
     let host = usuyo_plugin::PluginHost::new(
         usuyo_plugin::HostConfig {
@@ -344,11 +417,19 @@ fn manifest_matches_the_code() {
         usuyo_plugin::protocol::PluginKind::Fetch(spec) => spec,
         other => panic!("not a fetch plugin: {other:?}"),
     };
-    let fetch = spec.capabilities.fetch.as_ref().unwrap();
-    assert_eq!(
-        fetch.outputs.iter().copied().collect::<Vec<_>>(),
-        usuyo_fetch_x::fetch::OUTPUTS.to_vec()
-    );
+    for method in ["guest", "embed"] {
+        let fetch = spec
+            .method(method)
+            .unwrap()
+            .capabilities
+            .fetch
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            fetch.outputs.iter().copied().collect::<Vec<_>>(),
+            usuyo_fetch_x::fetch::OUTPUTS.to_vec()
+        );
+    }
     let hosts: Vec<String> = m.header.permissions.network.hosts.clone();
     assert_eq!(
         hosts,

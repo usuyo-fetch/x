@@ -1,5 +1,6 @@
-//! 取一条帖子（协议 §3.6、§3.7，设计 x.md 第 3、6、7 节）：先用访客令牌调帖子接口；
-//! 只在帖子接口被限流、令牌被拒时退到嵌入用的 syndication 接口，输出里写明走的是哪一个。
+//! 取一条帖子（协议 §3.6、§3.7，设计 x.md 第 3、6、7 节），两种方法（§2.3.1）：`guest` 用访客令牌调帖子接口，
+//! `embed` 调嵌入用的 syndication 接口。哪个先试、哪个接着由宿主照清单排：帖子接口被拒（令牌、出口）回
+//! `blocked`，宿主换嵌入接口；限流回 `rate-limited`，宿主照节奏等。输出里写明走的是哪一个。
 //! 不带任何 cookie，不读账号凭据；按 `--want` 下载图片和视频。
 
 use std::collections::BTreeSet;
@@ -46,7 +47,15 @@ const THREAD_MAX: usize = 20;
 const THREAD_GAP: Duration = Duration::from_secs(1);
 const GUEST_CACHE_FILE: &str = "guest-token.json";
 
+/// 走哪个接口：清单里的方法 `guest`、`embed`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Api {
+    Guest,
+    Embed,
+}
+
 pub struct Request<'a> {
+    pub api: Api,
     /// 原链接或 `canonicalize` 给的 `resolvedUrl`。
     pub input: &'a str,
     pub out: &'a Path,
@@ -72,7 +81,7 @@ impl Route {
     }
 }
 
-/// 帖子接口不肯答的几种：前两种退到嵌入接口，别的直接报。
+/// 接口不肯答的几种。
 #[derive(Debug)]
 enum Trouble {
     Limited {
@@ -130,16 +139,15 @@ pub fn fetch(site: &Site, request: Request<'_>) -> Result<FetchOutput, Error> {
 
     let fetched_at = Rfc3339::from_timestamp(jiff::Timestamp::now());
     let mut guest = Guest::new(request.cache_dir.as_deref());
-    let (answer, route, fallback_why) = match tweet_result(&http, &mut guest, &id) {
-        Ok(answer) => (answer, Route::Graphql, None),
-        Err(Trouble::Other(e)) => return Err(e),
-        Err(first) => {
-            eprintln!("TweetResultByRestId: {first}; falling back to the syndication endpoint");
-            match syndication(&http, &id) {
-                Ok(answer) => (answer, Route::Syndication, Some(first.to_string())),
-                Err(second) => return Err(both_refused(first, second)),
-            }
-        }
+    let (answer, route) = match request.api {
+        Api::Guest => (
+            tweet_result(&http, &mut guest, &id).map_err(|t| refusal(Route::Graphql, t))?,
+            Route::Graphql,
+        ),
+        Api::Embed => (
+            syndication(&http, &id).map_err(|t| refusal(Route::Syndication, t))?,
+            Route::Syndication,
+        ),
     };
     let post = into_post(answer)?;
     let thread = match route {
@@ -152,7 +160,6 @@ pub fn fetch(site: &Site, request: Request<'_>) -> Result<FetchOutput, Error> {
             post,
             thread,
             route,
-            fallback_why,
         },
         &wanted,
         fetched_at,
@@ -160,24 +167,16 @@ pub fn fetch(site: &Site, request: Request<'_>) -> Result<FetchOutput, Error> {
     )
 }
 
-/// 两个接口都不肯答时报什么（设计第 7 节）：有一个说限流就是限流，两个都拒是被挡。
-fn both_refused(first: Trouble, second: Trouble) -> Error {
-    let message = format!("TweetResultByRestId: {first}; syndication: {second}");
-    match (first, second) {
-        (_, Trouble::Other(e)) => e,
-        (Trouble::Limited { retry_after: a, .. }, Trouble::Limited { retry_after: b, .. }) => {
-            Error::RateLimited {
-                message,
-                retry_after: a.max(b),
-            }
-        }
-        (Trouble::Limited { retry_after, .. }, _) | (_, Trouble::Limited { retry_after, .. }) => {
-            Error::RateLimited {
-                message,
-                retry_after,
-            }
-        }
-        _ => Error::Blocked(message),
+/// 接口不肯答时报什么（设计第 7 节）：限流是限流，被拒（令牌、出口）是被挡，宿主换另一种方法。
+fn refusal(route: Route, trouble: Trouble) -> Error {
+    let message = format!("{}: {trouble}", route.as_str());
+    match trouble {
+        Trouble::Other(e) => e,
+        Trouble::Limited { retry_after, .. } => Error::RateLimited {
+            message,
+            retry_after,
+        },
+        Trouble::Refused(_) | Trouble::BadToken(_) => Error::Blocked(message),
     }
 }
 
@@ -396,7 +395,9 @@ fn tweet_result_once(http: &Http<'_>, token: &str, id: &str) -> Result<Answer, T
         && let Err(e) = &parsed
     {
         return Err(
-            Error::UpstreamChanged(format!("TweetResultByRestId answered non-JSON: {e}")).into(),
+            Error::UpstreamChanged(format!("TweetResultByRestId answered non-JSON: {e}"))
+                .answered(&body)
+                .into(),
         );
     }
     let value = parsed.unwrap_or(Value::Null);
@@ -421,14 +422,16 @@ fn tweet_result_once(http: &Http<'_>, token: &str, id: &str) -> Result<Answer, T
     match status {
         200 => {}
         401 | 403 => return Err(Trouble::Refused(described())),
-        _ => return Err(Error::UpstreamChanged(described()).into()),
+        _ => return Err(Error::UpstreamChanged(described()).answered(&body).into()),
     }
     match post::graphql_answer(&value) {
         Some(answer) => Ok(answer),
         // 回答里没有 `tweetResult`：多半是 queryId 或 features 不对（设计第 7 节）
-        None => {
-            Err(Error::UpstreamChanged(format!("{} without data.tweetResult", described())).into())
-        }
+        None => Err(
+            Error::UpstreamChanged(format!("{} without data.tweetResult", described()))
+                .answered(&body)
+                .into(),
+        ),
     }
 }
 
@@ -477,10 +480,14 @@ fn syndication(http: &Http<'_>, id: &str) -> Result<Answer, Trouble> {
         }
     }
     let body = http.read_capped(&mut response, API_BYTES)?;
-    let value: Value = serde_json::from_slice(&body)
-        .map_err(|e| Error::UpstreamChanged(format!("syndication answered non-JSON: {e}")))?;
-    post::syndication_answer(&value)
-        .ok_or_else(|| Error::UpstreamChanged("syndication answer has no id_str".into()).into())
+    let value: Value = serde_json::from_slice(&body).map_err(|e| {
+        Error::UpstreamChanged(format!("syndication answered non-JSON: {e}")).answered(&body)
+    })?;
+    post::syndication_answer(&value).ok_or_else(|| {
+        Error::UpstreamChanged("syndication answer has no id_str".into())
+            .answered(&body)
+            .into()
+    })
 }
 
 // ---------- 前面的串 ----------
@@ -569,7 +576,6 @@ struct Fetched {
     post: Post,
     thread: Thread,
     route: Route,
-    fallback_why: Option<String>,
 }
 
 fn write_post(
@@ -583,7 +589,6 @@ fn write_post(
         post,
         thread,
         route,
-        fallback_why,
     } = fetched;
     let mut missing = Vec::new();
     let mut reasons: Vec<String> = Vec::new();
@@ -727,7 +732,6 @@ fn write_post(
         "id": post.id,
         "url": screen_name.as_deref().map_or_else(|| link::canonical_url(&post.id), |s| link::post_url(s, &post.id)),
         "api": route.as_str(),
-        "fallbackBecause": fallback_why,
         "author": post.author.as_ref().map(|a| json!({"id": a.id, "screenName": a.screen_name, "name": a.name})),
         "createdAt": post.created_at.as_ref().map(Rfc3339::as_str),
         "lang": post.lang,
@@ -1065,42 +1069,29 @@ mod tests {
         );
     }
 
-    fn limited(s: u64) -> Trouble {
-        Trouble::Limited {
-            message: "429".into(),
-            retry_after: Some(s),
-        }
-    }
-
     #[test]
-    fn both_routes_failing() {
+    fn refusals() {
+        let limited = Trouble::Limited {
+            message: "429".into(),
+            retry_after: Some(900),
+        };
         assert!(matches!(
-            both_refused(limited(60), limited(900)),
+            refusal(Route::Graphql, limited),
             Error::RateLimited {
                 retry_after: Some(900),
                 ..
             }
         ));
         assert!(matches!(
-            both_refused(
-                Trouble::Refused("403".into()),
-                Trouble::Refused("403".into())
-            ),
+            refusal(Route::Syndication, Trouble::Refused("403".into())),
             Error::Blocked(_)
         ));
         assert!(matches!(
-            both_refused(Trouble::Refused("403".into()), limited(30)),
-            Error::RateLimited {
-                retry_after: Some(30),
-                ..
-            }
+            refusal(Route::Graphql, Trouble::BadToken("x".into())),
+            Error::Blocked(_)
         ));
         assert!(matches!(
-            both_refused(limited(30), Trouble::Refused("403".into())),
-            Error::RateLimited { .. }
-        ));
-        assert!(matches!(
-            both_refused(limited(30), Trouble::Other(Error::Network("x".into()))),
+            refusal(Route::Graphql, Trouble::Other(Error::Network("x".into()))),
             Error::Network(_)
         ));
     }

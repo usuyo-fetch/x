@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use common::{Activate, FRESH_TOKEN, Fake, JPEG, MP4, PNG, STALE_TOKEN};
 use serde_json::Value;
-use usuyo_fetch_x::fetch::{Request, fetch};
+use usuyo_fetch_x::fetch::{Api, Request, fetch};
 use usuyo_fetch_x::{Error, Lang, cli, link};
 use usuyo_plugin_kit::protocol::{
     Canonicalized, Completeness, ErrorCode, FetchOutput, NotFoundReason, OutputKind,
@@ -31,10 +31,22 @@ fn run(
     want: Option<&[OutputKind]>,
     cache: Option<&Path>,
 ) -> (Result<FetchOutput, Error>, tempfile::TempDir) {
+    run_on(Api::Guest, fake, input, want, cache)
+}
+
+/// 方法 `guest` 或 `embed`。
+fn run_on(
+    api: Api,
+    fake: &Fake,
+    input: &str,
+    want: Option<&[OutputKind]>,
+    cache: Option<&Path>,
+) -> (Result<FetchOutput, Error>, tempfile::TempDir) {
     let out = tempfile::tempdir().unwrap();
     let result = fetch(
         &fake.site(),
         Request {
+            api,
             input,
             out: out.path(),
             want: want.map(|w| w.iter().copied().collect::<BTreeSet<_>>()),
@@ -51,6 +63,17 @@ fn ok(fake: &Fake, n: u32) -> (FetchOutput, tempfile::TempDir) {
 
 fn err(fake: &Fake, n: u32) -> Error {
     run(fake, &link_to(n), None, None).0.expect_err("an error")
+}
+
+fn embed_ok(fake: &Fake, n: u32) -> (FetchOutput, tempfile::TempDir) {
+    let (result, out) = run_on(Api::Embed, fake, &link_to(n), None, None);
+    (result.unwrap_or_else(|e| panic!("{n}: {e}")), out)
+}
+
+fn embed_err(fake: &Fake, n: u32) -> Error {
+    run_on(Api::Embed, fake, &link_to(n), None, None)
+        .0
+        .expect_err("an error")
 }
 
 fn read_json(dir: &Path, name: &str) -> Value {
@@ -299,6 +322,8 @@ fn parameter_errors_are_upstream_changed_without_fallback() {
     for n in [16, 19] {
         let f = err(&fake, n).to_failure(Lang::Zh);
         assert_eq!(f.code, ErrorCode::UpstreamChanged, "{n}: {}", f.message);
+        // 接口原样的回答跟着错误走（宿主记进失败日志）
+        assert!(f.detail.is_some_and(|d| d.starts_with('{')), "{n}");
     }
     assert!(
         err(&fake, 16)
@@ -309,12 +334,16 @@ fn parameter_errors_are_upstream_changed_without_fallback() {
 }
 
 #[test]
-fn rate_limited_posts_fall_back_to_syndication_and_say_so() {
+fn a_rate_limit_on_the_post_endpoint_waits_and_the_embed_method_says_so() {
     let fake = Fake::start(Activate::Ok);
-    let (out, dir) = ok(&fake, 17);
+    // 限流不在插件里换接口：宿主照节奏等，下一轮停着的这种跳过、换嵌入接口
+    let f = err(&fake, 17).to_failure(Lang::Zh);
+    assert_eq!(f.code, ErrorCode::RateLimited);
+    assert!(fake.on("syndication").is_empty());
+    let (out, dir) = embed_ok(&fake, 17);
     let meta = read_json(dir.path(), "meta.json");
     assert_eq!(meta["api"], "syndication");
-    assert!(meta["fallbackBecause"].as_str().unwrap().contains("429"));
+    assert!(meta.get("fallbackBecause").is_none());
     assert_eq!(
         out.text.as_deref(),
         Some(
@@ -328,6 +357,7 @@ fn rate_limited_posts_fall_back_to_syndication_and_say_so() {
     // 嵌入接口不带任何凭据，token 照 react-tweet 的公式算
     let syn = fake.on("syndication");
     assert_eq!(syn.len(), 1);
+    assert_eq!(fake.on("graphql").len(), 1, "嵌入接口这种方法不碰帖子接口");
     assert_eq!(syn[0].query("id").as_deref(), Some(id(17).as_str()));
     assert!(
         syn[0]
@@ -338,12 +368,14 @@ fn rate_limited_posts_fall_back_to_syndication_and_say_so() {
 }
 
 #[test]
-fn both_routes_limited_is_rate_limited_with_the_later_reset() {
+fn each_endpoint_reports_its_own_rate_limit() {
     let fake = Fake::start(Activate::Ok);
     let f = err(&fake, 18).to_failure(Lang::Zh);
     assert_eq!(f.code, ErrorCode::RateLimited);
-    let after = f.retry_after.unwrap();
-    assert!((850..=900).contains(&after), "{after}");
+    assert!(f.retry_after.is_some());
+    let f = embed_err(&fake, 18).to_failure(Lang::Zh);
+    assert_eq!(f.code, ErrorCode::RateLimited);
+    assert!(f.retry_after.is_some());
     // 令牌发不出来、嵌入接口也限流
     let fake = Fake::start(Activate::Limited);
     let f = err(&fake, 18).to_failure(Lang::Zh);
@@ -353,21 +385,27 @@ fn both_routes_limited_is_rate_limited_with_the_later_reset() {
 
 #[test]
 fn refused_everywhere_is_blocked() {
-    // 帖子接口 403，嵌入接口也 403
+    // 帖子接口 403，嵌入接口也 403：各自回被挡，宿主换下一种、停这一种
     let fake = Fake::start(Activate::Ok);
     let f = err(&fake, 24).to_failure(Lang::Zh);
     assert_eq!(f.code, ErrorCode::Blocked);
     assert!(f.hint.unwrap().contains("出口"));
-    // 换不到访客令牌，嵌入接口也拒
+    assert!(fake.on("syndication").is_empty());
+    assert_eq!(
+        embed_err(&fake, 24).to_failure(Lang::Zh).code,
+        ErrorCode::Blocked
+    );
+    // 换不到访客令牌
     let fake = Fake::start(Activate::Refused);
     assert_eq!(err(&fake, 24).to_failure(Lang::Zh).code, ErrorCode::Blocked);
     assert!(fake.on("graphql").is_empty());
 }
 
 #[test]
-fn a_refused_guest_token_uses_syndication() {
+fn a_refused_guest_token_is_blocked_and_the_embed_method_still_works() {
     let fake = Fake::start(Activate::Refused);
-    let (out, dir) = ok(&fake, 1);
+    assert_eq!(err(&fake, 1).to_failure(Lang::Zh).code, ErrorCode::Blocked);
+    let (out, dir) = embed_ok(&fake, 1);
     assert_eq!(read_json(dir.path(), "meta.json")["api"], "syndication");
     assert_eq!(
         out.text.as_deref(),
@@ -376,11 +414,11 @@ fn a_refused_guest_token_uses_syndication() {
     assert_eq!(out.images.len(), 2);
     assert_eq!(out.published_at.unwrap().as_str(), "2024-10-30T12:00:00Z");
     // 嵌入接口说没有、说删了
-    let f = err(&fake, 25).to_failure(Lang::Zh);
+    let f = embed_err(&fake, 25).to_failure(Lang::Zh);
     assert_eq!(f.code, ErrorCode::NotFound);
-    let f = err(&fake, 15).to_failure(Lang::Zh);
+    let f = embed_err(&fake, 15).to_failure(Lang::Zh);
     assert_eq!(f.code, ErrorCode::NotFound);
-    let f = err(&fake, 13).to_failure(Lang::Zh);
+    let f = embed_err(&fake, 13).to_failure(Lang::Zh);
     assert_eq!(f.reason, Some(NotFoundReason::Deleted));
     no_credentials_leak(&fake);
 }
@@ -404,6 +442,7 @@ fn server_errors_are_network() {
     let e = fetch(
         &site,
         Request {
+            api: Api::Guest,
             input: &link_to(1),
             out: out.path(),
             want: None,
@@ -648,9 +687,16 @@ fn credentials_child() {
     }
     let fake = Fake::start(Activate::Ok);
     let out = tempfile::tempdir().unwrap();
-    let args: Vec<String> = ["fetch", &link_to(3), "--out", out.path().to_str().unwrap()]
-        .map(String::from)
-        .to_vec();
+    let args: Vec<String> = [
+        "fetch",
+        &link_to(3),
+        "--out",
+        out.path().to_str().unwrap(),
+        "--method",
+        "guest",
+    ]
+    .map(String::from)
+    .to_vec();
     assert_eq!(cli::run(&args, &fake.site()), 0);
     assert!(out.path().join("images/q-001.jpg").exists());
     assert!(out.path().join("media/q-video-001.mp4").exists());

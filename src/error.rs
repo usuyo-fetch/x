@@ -36,6 +36,23 @@ pub enum Error {
     Internal(String),
     #[error("write output: {0}")]
     Io(#[from] std::io::Error),
+    /// 接口回了，但不是能用的回答：带着回答的开头，宿主记进失败日志。
+    #[error("{error}")]
+    Answered { error: Box<Error>, answer: String },
+}
+
+/// 留给失败日志的回答开头最多多少字节。
+const ANSWER_BYTES: usize = 4096;
+
+impl Error {
+    /// 带上接口回答的开头。
+    pub fn answered(self, body: &[u8]) -> Error {
+        let end = body.len().min(ANSWER_BYTES);
+        Error::Answered {
+            error: Box::new(self),
+            answer: String::from_utf8_lossy(&body[..end]).into_owned(),
+        }
+    }
 }
 
 /// `hint` 按 `USUYO_LOCALE` 写：`zh` 开头写中文，其余写英文。
@@ -69,6 +86,7 @@ impl Error {
             ..CallFailure::new(code, message.clone())
         };
         match self {
+            Error::Answered { error, answer } => error.to_failure(lang).with_detail(answer),
             Error::Unsupported(_) => with(ErrorCode::UnsupportedInput, None),
             Error::InvalidArgs(_) => with(ErrorCode::InvalidArgs, None),
             Error::NotFound { deleted, .. } => CallFailure {

@@ -11,17 +11,17 @@ X（Twitter）的获取插件，供 [usuyo](https://github.com/usuyo/usuyo) 调�
 <a id="方法"></a>
 ## 方法
 
-| 方法 | 取得 | 账号 | 层级 | 现状 |
-|---|---|---|---|---|
-| [访客接口](#访客接口) | 单条帖子：正文、图片、视频、被引用的帖子、作者自回的上文 | 不使用 | `public-web` | 已实现 |
-| [嵌入接口](#嵌入接口) | 单条帖子，访客接口不可用时 | 不使用 | `public-web` | 已实现 |
-| [浏览器脚本](#浏览器脚本) | 书签、喜欢的链接 | 只在使用者的浏览器内 | `browser-session` | 已实现 |
-| [官方归档](#官方归档) | 喜欢、书签的链接 | 不使用 | `official-export` | 已实现 |
-| [内容投递](#内容投递) | 登录后才可见的帖子、帖子的下文、长文章 | 只在使用者的浏览器内 | `browser-session` | 未实现 |
-| [会话接口](#会话接口) | 书签、喜欢，可定时取新的 | 登录进 usuyo | `session-api` | 未实现 |
-| [签名接口](#签名接口) | 搜索、用户时间线 | 登录进 usuyo | `private-api` | 未实现 |
-| [官方 API](#官方-api) | 书签、喜欢 | 开发者凭据 | `official-export` | 未实现 |
-| [手机镜像](#手机镜像) | 书签、喜欢的链接 | 只在手机的 App 内 | `vision-ui` | 未实现 |
+| 方法 | 清单里的 id | 取得 | 账号 | 层级 | 现状 |
+|---|---|---|---|---|---|
+| [访客接口](#访客接口) | `guest` | 单条帖子：正文、图片、视频、被引用的帖子、作者自回的上文 | 不使用 | `public-web` | 已实现 |
+| [嵌入接口](#嵌入接口) | `embed` | 单条帖子，访客接口不可用时 | 不使用 | `public-web` | 已实现 |
+| [浏览器脚本](#浏览器脚本) | `userscript` | 书签、喜欢的链接 | 只在使用者的浏览器内 | `browser-session` | 已实现 |
+| [官方归档](#官方归档) | `archive` | 喜欢、书签的链接 | 不使用 | `official-export` | 已实现 |
+| [内容投递](#内容投递) | `deliver-content` | 登录后才可见的帖子、帖子的下文、长文章 | 只在使用者的浏览器内 | `browser-session` | 未实现 |
+| [会话接口](#会话接口) | `session` | 书签、喜欢，可定时取新的 | 登录进 usuyo | `session-api` | 未实现 |
+| [签名接口](#签名接口) | `signed` | 搜索、用户时间线 | 登录进 usuyo | `private-api` | 未实现 |
+| [官方 API](#官方-api) | `xurl` | 书签、喜欢 | 开发者凭据 | `official-export` | 未实现 |
+| [手机镜像](#手机镜像) | `iphone` | 书签、喜欢的链接 | 只在手机的 App 内 | `vision-ui` | 未实现 |
 
 层级沿用 [usuyo 插件协议](https://github.com/usuyo/usuyo/blob/main/docs/protocol/manifest.md)的定义。「账号」一栏写的是账号在哪里被用到。
 
@@ -30,7 +30,7 @@ X（Twitter）的获取插件，供 [usuyo](https://github.com/usuyo/usuyo) 调�
 
 已实现 · `public-web` · 不使用账号
 
-以访客令牌请求帖子接口 `TweetResultByRestId`。令牌由 `POST guest/activate.json` 取得，缓存一小时。一次调用取回正文（长帖为全文）、原图、码率最高的 mp4、被引用的帖子（一层），以及同一作者自己回复的上文，至多 20 条。`t.co` 短链按回答里的 `expanded_url` 展开。
+以访客令牌请求帖子接口 `TweetResultByRestId`。被限流时回 `rate-limited`，usuyo 照节奏等，下一轮跳过它、改用嵌入接口；令牌或出口被拒时回 `blocked`，usuyo 当场改用嵌入接口。令牌由 `POST guest/activate.json` 取得，缓存一小时。一次调用取回正文（长帖为全文）、原图、码率最高的 mp4、被引用的帖子（一层），以及同一作者自己回复的上文，至多 20 条。`t.co` 短链按回答里的 `expanded_url` 展开。
 
 登录后才可见的帖子（成人内容、受保护的账号）返回 `not-found`，原因为 `private`，条目只保存链接。Spaces 和直播返回 `unsupported-input`。
 
@@ -43,7 +43,7 @@ X（Twitter）的获取插件，供 [usuyo](https://github.com/usuyo/usuyo) 调�
 
 已实现 · `public-web` · 不使用账号
 
-访客接口被限流或令牌被拒时使用。请求供嵌入帖子用的 syndication 接口，`token` 由帖子 id 算出。取回正文、图片、视频和被引用的帖子；长帖只有前一段，结果标为不完整并写明原因。`meta.json` 的 `api` 字段记录这条帖子由哪个接口取回。
+usuyo 排在访客接口之后：访客接口被拒、或限流停着时用它。请求供嵌入帖子用的 syndication 接口，`token` 由帖子 id 算出。取回正文、图片、视频和被引用的帖子；长帖只有前一段，结果标为不完整并写明原因。`meta.json` 的 `api` 字段记录这条帖子由哪个接口取回。
 
 - 依据：[vercel/react-tweet](https://github.com/vercel/react-tweet) `packages/react-tweet/src/api/fetch-tweet.ts`。
 - 已记录的风险：没有账号参与。
