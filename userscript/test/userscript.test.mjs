@@ -373,3 +373,303 @@ test('page-patched builtins never see the token', { skip: !BIN && 'USUYO_BIN not
   assert.ok(!s.hasInput());
   noLeak(s, deliverToken, PORT);
 });
+
+// ---------- 诊断（复制诊断） ----------
+
+const DIAG_START = '  // ---------- 诊断：只记回答的形状，不记任何值 ----------';
+const DIAG_END = '  // ---------- 诊断结束 ----------';
+const SCRIPT_TEXT = readFileSync(new URL('../usuyo-x-saved.user.js', import.meta.url), 'utf8');
+
+function diagBlock(text) {
+  const start = text.indexOf(DIAG_START);
+  const end = text.indexOf(DIAG_END);
+  assert.ok(start >= 0 && end > start, 'diagnosis block markers');
+  return text.slice(start, end + DIAG_END.length);
+}
+
+const wait = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+
+/** 页面的 fetch 换成固定回答，并数它被调了几次。 */
+function answering(body, status = 200) {
+  const calls = [];
+  const fetchImpl = async (input) => {
+    calls.push(String(input));
+    return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  };
+  return { fetchImpl, calls };
+}
+
+async function copyOut(s) {
+  s.click('复制诊断');
+  await wait(5);
+  return s.copied[s.copied.length - 1];
+}
+
+// mulberry32：小的种子也给出分散的头几个值
+function rng(seed) {
+  let t0 = seed >>> 0;
+  return () => {
+    t0 = (t0 + 0x6d2b79f5) >>> 0;
+    let t = t0;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+  };
+}
+
+// 代表内容的字符串：id、url、名字、令牌、正文、里面带 JSON 的字符串
+function markerString(r, i) {
+  const kinds = [
+    () => 'MARK' + i + 'x' + Math.floor(r() * 1e9),
+    () => 'https://mark' + i + '.example.invalid/v?token=MARK' + i,
+    () => String(14545102784038246591n + BigInt(i)),
+    () => 'v2_0600002310' + i + 'MARK@finder',
+    () => '标记内容' + i + ' MARK' + i,
+    () => '{"inner":"MARKJSON' + i + '","n":' + i + '}',
+  ];
+  return kinds[Math.floor(r() * kinds.length)]();
+}
+
+function randomValue(r, depth, markers) {
+  const pick = r();
+  if (depth > 4 || pick < 0.35) {
+    const m = markerString(r, markers.length);
+    markers.push(m);
+    return m;
+  }
+  if (pick < 0.45) {
+    const n = 900000000 + Math.floor(r() * 99999999);
+    markers.push(String(n));
+    return n;
+  }
+  if (pick < 0.7) return Array.from({ length: Math.floor(r() * 4) }, () => randomValue(r, depth + 1, markers));
+  const obj = {};
+  const n = 1 + Math.floor(r() * 4);
+  for (let i = 0; i < n; i++) {
+    // 字段名一样的键，和长得像内容的键（id、中文、url），后一种不能出现在诊断里
+    if (r() < 0.5) {
+      obj['field' + String.fromCharCode(97 + i)] = randomValue(r, depth + 1, markers);
+    } else {
+      const k = markerString(r, markers.length);
+      markers.push(k);
+      obj[k] = randomValue(r, depth + 1, markers);
+    }
+  }
+  return obj;
+}
+
+test('the diagnosis never holds a planted value, key or path id', async () => {
+  let nested = 0;
+  for (let seed = 1; seed <= 300; seed++) {
+    const r = rng(seed);
+    const markers = [];
+    const body = { root: randomValue(r, 1, markers), [markerString(r, -1)]: randomValue(r, 1, markers) };
+    markers.push(Object.keys(body)[1]);
+    if (JSON.stringify(body).includes('field')) nested++;
+    const { fetchImpl } = answering(body);
+    const s = load({ port: 1, me: ME, fetchImpl });
+    await s.page.fetch('https://x.com/i/api/graphql/MARKID9abc/Bookmarks?variables=MARKQ&cursor=MARKCURSOR');
+    await s.page.fetch('https://x.com/i/api/graphql/MARKID9abc/BookmarkMARKword' + 'x'.repeat(30));
+    await wait(5);
+    const out = await copyOut(s);
+    for (const m of [...markers, 'MARKID9abc', 'MARKQ', 'MARKCURSOR']) {
+      assert.ok(!out.includes(m), `seed ${seed}: ${JSON.stringify(m)} leaked into ${out}`);
+    }
+    assert.ok(!/MARK|标记|\bmark\d/.test(out), `seed ${seed}: marker fragment leaked into ${out}`);
+  }
+  assert.ok(nested > 100, 'generator produced nested objects');
+});
+
+test('the diagnosis keeps key paths, types and lengths of an answer', async () => {
+  const { fetchImpl } = answering({ data: { other: { items: [{ name: 'hello' }, { name: 'hi', url: 'x' }], count: 4 } } });
+  const s = load({ port: 1, me: ME, fetchImpl });
+  await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/Bookmarks');
+  await wait();
+  const d = JSON.parse(await copyOut(s));
+  assert.deepEqual(d.answers[0].shape, { data: { other: { items: { $array: 2, $items: { name: 'string:2..5', url: 'string:1' } }, count: 'number' } } });
+});
+
+test('repeats merge and the number of kept answers is bounded', async () => {
+  const { fetchImpl } = answering({ data: {} });
+  const s = load({ port: 1, me: ME, fetchImpl });
+  const name = (i) => 'Bookmark' + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26));
+  for (let i = 0; i < 50; i++) await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/' + name(i));
+  await wait(60);
+  let d = JSON.parse(await copyOut(s));
+  assert.equal(d.answers.length, 20);
+  assert.equal(d.looked, 50);
+  assert.equal(d.dropped, 30);
+  assert.deepEqual(d.answers.map((a) => a.path), Array.from({ length: 20 }, (_, i) => '/i/api/graphql/:x/' + name(30 + i)));
+  // 同一个请求再来 5 次：并成一条，不挤掉别的
+  for (let i = 0; i < 5; i++) await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/' + name(49) + '?cursor=' + i);
+  await wait(60);
+  d = JSON.parse(await copyOut(s));
+  assert.equal(d.answers.length, 20);
+  const last = d.answers[d.answers.length - 1];
+  assert.equal(last.path, '/i/api/graphql/:x/' + name(49));
+  assert.equal(last.answers, 6);
+  assert.equal(d.dropped, 30);
+});
+
+test('a recognised list answer records its counts', async () => {
+  const s = load({ port: 1, me: ME });
+  await browse(s);
+  const d = JSON.parse(await copyOut(s));
+  assert.equal(d.tool, 'usuyo-x-saved');
+  assert.equal(d.page, 'bookmarks');
+  assert.equal(d.recognised, 2);
+  const marks = d.answers.find((a) => a.path.endsWith('/Bookmarks'));
+  assert.equal(marks.path, '/i/api/graphql/:x/Bookmarks');
+  assert.deepEqual({ status: marks.status, json: marks.json, recognised: marks.recognised, took: marks.took, answers: marks.answers }, { status: 200, json: true, recognised: true, took: 3, answers: 1 });
+  assert.deepEqual(marks.skipped, { cursorOrModule: 1, noTweet: 0 });
+  assert.deepEqual(marks.stopped, []);
+  assert.ok(marks.shape.data.bookmark_timeline_v2.timeline.instructions.$array >= 1);
+  const likes = d.answers.find((a) => a.path.endsWith('/Likes'));
+  assert.equal(likes.took, 2);
+});
+
+test('an unrecognised answer on a list path is recorded as not recognised', async () => {
+  for (const [body, status, stopped] of [
+    [{ data: { renamed_timeline: { timeline: { instructions: [] } } } }, 200, ['unknownShape']],
+    [{ errors: [{ code: 88, message: 'Rate limit exceeded' }] }, 429, ['errors']],
+    ['<html>blocked</html>', 403, []],
+  ]) {
+    const { fetchImpl } = answering(body, status);
+    const s = load({ port: 1, me: ME, fetchImpl });
+    await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/Bookmarks?variables=%7B%7D');
+    await wait();
+    const d = JSON.parse(await copyOut(s));
+    assert.equal(d.recognised, 0);
+    const a = d.answers[0];
+    assert.deepEqual({ status: a.status, json: a.json, recognised: a.recognised, took: a.took, stopped: a.stopped }, { status, json: typeof body !== 'string', recognised: false, took: 0, stopped });
+    assert.equal(a.shape === 'string:' + String(body).length || typeof a.shape === 'object', true);
+  }
+  // 名字像、但脚本不认的接口也记下来
+  const { fetchImpl } = answering({ data: { folder: { items: [{ id: '1' }] } } });
+  const s = load({ port: 1, me: ME, fetchImpl });
+  await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/BookmarkFolderTimeline');
+  await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/HomeTimeline');
+  await wait();
+  const d = JSON.parse(await copyOut(s));
+  assert.deepEqual(d.answers.map((a) => [a.path, a.recognised]), [['/i/api/graphql/:x/BookmarkFolderTimeline', false]]);
+});
+
+test('an xhr answer is recorded the same way', async () => {
+  const s = load({ port: 1, me: ME });
+  const proto = s.page.XMLHttpRequest.prototype;
+  assert.equal(typeof proto.open, 'function');
+  const x = new s.page.XMLHttpRequest();
+  const listeners = {};
+  x.addEventListener = (t, fn) => (listeners[t] = fn);
+  x.open('GET', 'https://x.com/i/api/graphql/QUERYID22abc/Bookmarks');
+  x.send();
+  x.responseType = '';
+  x.responseText = JSON.stringify({ data: { bookmark_timeline_v2: { timeline: { instructions: [{ type: 'TimelineAddEntries', entries: [] }] } } } });
+  x.status = 200;
+  listeners.load();
+  const d = JSON.parse(await copyOut(s));
+  assert.deepEqual(d.answers.map((a) => [a.path, a.status, a.recognised, a.took]), [['/i/api/graphql/:x/Bookmarks', 200, true, 0]]);
+});
+
+test('copying puts the text on the clipboard and sends it nowhere else', async () => {
+  const { fetchImpl, calls } = answering({ data: { bookmark_timeline_v2: { timeline: { instructions: [] } } } });
+  const s = load({ port: 1, me: ME, fetchImpl });
+  await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/Bookmarks');
+  await wait();
+  const items = structuredClone(s.gm.get('items'));
+  const text = await copyOut(s);
+  assert.equal(s.copied.length, 1);
+  assert.equal(typeof JSON.parse(text).version, 'string');
+  assert.match(s.note(), /诊断已复制，只含结构/);
+  assert.match(s.panelText(), /诊断里只有回答的结构，没有任何内容/);
+  assert.equal(s.paste().style.display, 'none');
+  assert.deepEqual(s.gmRequests, []);
+  assert.deepEqual(s.violations, []);
+  assert.equal(s.pageStorage.size, 0);
+  assert.deepEqual(s.gm.get('items'), items);
+  assert.equal(calls.length, 1, 'no request beyond the page own');
+  assert.ok(!s.hasInput());
+});
+
+test('a refused or missing clipboard falls back to a selected text box', async () => {
+  for (const clipboard of ['refuse', 'none']) {
+    const s = load({ port: 1, me: ME, clipboard });
+    await browse(s);
+    s.click('复制诊断');
+    await wait(5);
+    const box = s.paste();
+    assert.equal(box.style.display, 'block');
+    assert.equal(box.selected, true);
+    assert.equal(box.readOnly, true);
+    assert.equal(JSON.parse(box.value).tool, 'usuyo-x-saved');
+    assert.match(s.note(), /没能写进剪贴板/);
+    assert.deepEqual(s.copied, []);
+    assert.deepEqual(s.gmRequests, []);
+  }
+});
+
+test('the diagnosis holds none of the fixture titles, names or ids', async () => {
+  const s = load({ port: 1, me: ME });
+  await browse(s);
+  const text = await copyOut(s);
+  for (const p of [...BOOKMARKS, ...LIKES]) assert.ok(!text.includes(p.id) && !text.includes(p.id.slice(0, 12)), 'post id ' + p.id);
+  for (const word of ['帖子', '长帖', '第二行', '后面还有', 'sample_person', 'other_one', 'Sample', 'QUERYID']) {
+    assert.ok(!text.includes(word), word);
+  }
+  assert.ok(!/https?:/.test(text), 'no url');
+  assert.ok(!text.includes('127.0.0.1'));
+});
+
+test('a quiet page says so once, calmly, and only until a list answer is recognised', async (t) => {
+  const realNow = Date.now;
+  t.after(() => (Date.now = realNow));
+  const s = load({ port: 1, me: ME });
+  assert.match(s.note(), /自己往下翻/);
+  const base = realNow();
+  Date.now = () => base + 31000;
+  s.tick();
+  assert.match(s.note(), /还没认出列表的回答.*复制诊断/);
+  assert.ok(!/[0-9]/.test(s.note()), 'no counts in the sentence');
+  assert.equal(s.warnText(), '', 'nothing in the warning line');
+  await browse(s);
+  s.tick();
+  assert.doesNotMatch(s.note(), /还没认出/);
+  // 不在书签、喜欢页上不提
+  const other = load({ port: 1, me: ME, path: '/home' });
+  Date.now = () => base + 90000;
+  other.tick();
+  assert.doesNotMatch(other.note(), /还没认出/);
+});
+
+test('the version is bumped and the diagnosis code is the same in all three scripts', () => {
+  assert.match(SCRIPT_TEXT, /^\/\/ @version      0\.2\.0$/m);
+  assert.ok(SCRIPT_TEXT.includes("const VERSION = '0.2.0';"));
+  for (const sibling of ['../../../xiaohongshu/userscript/usuyo-xhs-saved.user.js', '../../../bilibili/userscript/usuyo-bilibili-saved.user.js']) {
+    const url = new URL(sibling, import.meta.url);
+    assert.ok(existsSync(url), 'sibling script is expected at ' + url.pathname);
+    assert.equal(diagBlock(SCRIPT_TEXT), diagBlock(readFileSync(url, 'utf8')));
+  }
+  assert.equal(SCRIPT_TEXT.match(/^\/\/ @connect\s+.*$/gm).length, 1);
+});
+
+test('an empty diagnosis still says whether requests reached the script', async () => {
+  const { fetchImpl } = answering({});
+  const s = load({ port: 1, me: ME, fetchImpl });
+  let d = JSON.parse(await copyOut(s));
+  assert.deepEqual({ requests: d.requests, looked: d.looked, answers: d.answers }, { requests: 0, looked: 0, answers: [] });
+  assert.equal(typeof d.startedAs, 'string');
+  await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/HomeTimeline');
+  await wait();
+  d = JSON.parse(await copyOut(s));
+  assert.deepEqual({ requests: d.requests, looked: d.looked, answers: d.answers }, { requests: 1, looked: 0, answers: [] });
+});
+
+test('a protocol-relative address loses its host and merges with the full one', async () => {
+  const { fetchImpl } = answering({});
+  const s = load({ port: 1, me: ME, fetchImpl });
+  await s.page.fetch('//x.com/i/api/graphql/QUERYID22abc/Bookmarks');
+  await s.page.fetch('https://x.com/i/api/graphql/QUERYID22abc/Bookmarks');
+  await wait();
+  const d = JSON.parse(await copyOut(s));
+  assert.deepEqual(d.answers.map((a) => [a.path, a.answers]), [['/i/api/graphql/:x/Bookmarks', 2]]);
+});

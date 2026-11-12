@@ -53,7 +53,7 @@ fn userscript_reads_no_cookies_and_writes_no_page_storage() {
     }
 }
 
-/// 交给 usuyo 的那一段和小红书插件 0.2.1 的脚本逐字相同：令牌和握手的写法不在这里另改。
+/// 交给 usuyo 的那一段和小红书插件 0.3.0 的脚本逐字相同：令牌和握手的写法不在这里另改。
 #[test]
 fn delivery_code_is_the_xiaohongshu_one() {
     let path = concat!(
@@ -70,6 +70,6 @@ fn delivery_code_is_the_xiaohongshu_one() {
         let end = s.find("  function today() {").unwrap();
         s[start..end].to_owned()
     };
-    assert!(xhs.contains("@version      0.2.1"));
+    assert!(xhs.contains("@version      0.3.0"));
     assert_eq!(block(SCRIPT), block(&xhs));
 }
