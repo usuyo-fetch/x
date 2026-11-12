@@ -66,6 +66,7 @@ methods:
       list:
         order: unordered
         files: ["twitter-*.zip"]
+        reads: X 设置里「下载你的数据归档」给的 zip
   - id: deliver-content
     name: 内容投递
     built: false
@@ -91,6 +92,11 @@ methods:
     access: official-export
     login: required
     account: developer
+    capabilities:
+      list:
+        sources:
+          - {source: "x:bookmarks", title: 书签, action: favorite}
+          - {source: "x:likes", title: 喜欢, action: like}
   - id: iphone
     name: 手机镜像
     built: false
@@ -98,6 +104,7 @@ methods:
     login: required
     account: own-phone
     interaction: foreground
+    drives: iphone
 pacing:
   x: {batch: true, interval: 10s, daily: 300}
 permissions:
