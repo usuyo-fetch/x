@@ -128,9 +128,10 @@ fn photos_through_the_post_endpoint() {
         std::fs::read(dir.path().join("images/002.png")).unwrap(),
         PNG
     );
-    assert_eq!(out.completeness, Completeness::Partial);
-    assert_eq!(out.missing, [OutputKind::Video]);
-    assert_eq!(out.missing_reason.as_deref(), Some("这条帖子没有视频"));
+    // 帖子本来就没有视频：不算缺。
+    assert_eq!(out.completeness, Completeness::Full);
+    assert!(out.missing.is_empty());
+    assert_eq!(out.missing_reason, None);
     // 原图：`name=orig`
     let media = fake.on("media");
     assert_eq!(media.len(), 2);
@@ -176,7 +177,7 @@ fn video_takes_the_highest_mp4_and_old_author_shape() {
         out.author.unwrap().url.as_deref(),
         Some("https://x.com/old_shape")
     );
-    assert_eq!(out.missing, [OutputKind::Images]);
+    assert!(out.missing.is_empty());
     assert_eq!(out.text.as_deref(), Some("A short clip"));
 }
 
@@ -248,7 +249,7 @@ fn the_earlier_thread_by_the_same_author_comes_first() {
     assert!(
         out.missing_reason
             .as_deref()
-            .is_some_and(|r| !r.contains("串"))
+            .is_none_or(|r| !r.contains("串"))
     );
 }
 
@@ -417,7 +418,7 @@ fn server_errors_are_network() {
 fn media_off_the_host_list_or_broken_is_missing_not_an_error() {
     let fake = Fake::start(Activate::Ok);
     let (out, dir) = ok(&fake, 20);
-    assert_eq!(out.missing, [OutputKind::Images, OutputKind::Video]);
+    assert_eq!(out.missing, [OutputKind::Images]);
     assert!(out.missing_reason.unwrap().contains("图片都没有下载下来"));
     assert!(
         read_json(dir.path(), "meta.json")["failed"][0]["why"]

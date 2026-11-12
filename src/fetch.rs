@@ -652,13 +652,12 @@ fn write_post(
             }
         }
         let lost = photos.len().min(MAX_IMAGES) - images.len();
+        // 帖子本来就没有图片不算缺；有而一张都没下载下来才算。
         if images.is_empty() {
-            missing.push(OutputKind::Images);
-            reasons.push(if photos.is_empty() {
-                "这条帖子没有图片".into()
-            } else {
-                "图片都没有下载下来".into()
-            });
+            if !photos.is_empty() {
+                missing.push(OutputKind::Images);
+                reasons.push("图片都没有下载下来".into());
+            }
         } else if lost > 0 {
             reasons.push(format!("有 {lost} 张图片没有下载下来"));
         }
@@ -693,13 +692,12 @@ fn write_post(
                 Err(why) => failed.push(json!({"url": raw, "why": why})),
             }
         }
+        // 同上：没有视频的帖子不算缺视频。
         if media.is_empty() {
-            missing.push(OutputKind::Video);
-            reasons.push(if videos.is_empty() {
-                "这条帖子没有视频".into()
-            } else {
-                "视频没有下载下来".into()
-            });
+            if !videos.is_empty() {
+                missing.push(OutputKind::Video);
+                reasons.push("视频没有下载下来".into());
+            }
         } else if media.len() < videos.len() {
             reasons.push(format!(
                 "有 {} 个视频没有下载下来",
