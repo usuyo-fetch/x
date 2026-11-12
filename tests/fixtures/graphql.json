@@ -1,0 +1,162 @@
+{
+  "_source": "Hand-written answers of GET /i/api/graphql/<queryId>/TweetResultByRestId, keyed by variables.tweetId. Shapes follow, as read on 2026-11-11: yt-dlp 412e7f0 yt_dlp/extractor/twitter.py (_graphql_to_legacy: tweetResult.result, __typename Tweet/TweetWithVisibilityResults/TweetTombstone/TweetUnavailable, tombstone.text.text, reason NsfwLoggedOut/NsfwViewerHasNoStatedAge/Protected, legacy.retweeted_status_result, quoted_status_result, views.count; _call_api: errors[].message); gallery-dl 811d917 gallery_dl/extractor/twitter.py (_transform_user: core.user_results.result.core.screen_name and legacy fallback; _transform_tweet: note_tweet.note_tweet_results.result.text/entity_set, legacy.created_at '%a %b %d %H:%M:%S %z %Y', entities.urls[].expanded_url; _extract_media: extended_entities.media[], media_url_https, original_info, video_info.variants[].bitrate/content_type/url, duration_millis; tweet_result_by_rest_id: article via withArticleRichContentState); twitter-web-exporter v1.4.3 src/utils/api.ts (extractTweetFullText). Values are invented. {MEDIA} is replaced with the local media server.",
+  "1849000000000000001": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet",
+    "rest_id": "1849000000000000001",
+    "core": {"user_results": {"result": {"__typename": "User", "rest_id": "4400000001",
+      "core": {"name": "Sample Person", "screen_name": "sample_person", "created_at": "Tue Mar 21 20:50:14 +0000 2006"},
+      "legacy": {"description": "", "followers_count": 10}}}},
+    "views": {"count": "1234", "state": "EnabledWithCount"},
+    "legacy": {
+      "created_at": "Wed Oct 30 12:00:00 +0000 2024",
+      "id_str": "1849000000000000001",
+      "full_text": "Two photos &amp; a link https://t.co/link1 #coffee https://t.co/media1",
+      "lang": "en",
+      "user_id_str": "4400000001",
+      "favorite_count": 10, "retweet_count": 2, "reply_count": 1, "quote_count": 0, "bookmark_count": 3,
+      "entities": {
+        "hashtags": [{"text": "coffee", "indices": [42, 49]}],
+        "urls": [{"url": "https://t.co/link1", "expanded_url": "https://example.com/brew", "display_url": "example.com/brew", "indices": [24, 41]}],
+        "media": [{"url": "https://t.co/media1", "type": "photo", "media_url_https": "{MEDIA}/media/PhotoOne.jpg"}]
+      },
+      "extended_entities": {"media": [
+        {"type": "photo", "url": "https://t.co/media1", "media_url_https": "{MEDIA}/media/PhotoOne.jpg", "ext_alt_text": "a cup", "original_info": {"width": 1200, "height": 800}},
+        {"type": "photo", "url": "https://t.co/media1", "media_url_https": "{MEDIA}/media/PhotoTwo.png", "original_info": {"width": 640, "height": 640}}
+      ]}
+    }
+  }}}}},
+  "1849000000000000002": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "TweetWithVisibilityResults",
+    "tweet": {
+      "rest_id": "1849000000000000002",
+      "core": {"user_results": {"result": {"__typename": "User", "rest_id": "4400000002", "legacy": {"name": "Old Shape", "screen_name": "old_shape"}}}},
+      "legacy": {
+        "created_at": "Thu Oct 31 08:30:00 +0000 2024",
+        "id_str": "1849000000000000002",
+        "full_text": "A short clip https://t.co/vid1",
+        "user_id_str": "4400000002",
+        "entities": {"hashtags": [], "urls": []},
+        "extended_entities": {"media": [
+          {"type": "video", "url": "https://t.co/vid1", "media_url_https": "{MEDIA}/media/thumb.jpg", "original_info": {"width": 1280, "height": 720},
+           "video_info": {"duration_millis": 12500, "variants": [
+             {"content_type": "application/x-mpegURL", "url": "{MEDIA}/video/clip.m3u8"},
+             {"content_type": "video/mp4", "bitrate": 256000, "url": "{MEDIA}/video/clip-low.mp4"},
+             {"content_type": "video/mp4", "bitrate": 2176000, "url": "{MEDIA}/video/clip-high.mp4"}
+           ]}}
+        ]}
+      }
+    }
+  }}}}},
+  "1849000000000000003": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet",
+    "rest_id": "1849000000000000003",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "legacy": {
+      "created_at": "Fri Nov 01 09:00:00 +0000 2024",
+      "id_str": "1849000000000000003",
+      "full_text": "Look at this https://t.co/quote1",
+      "user_id_str": "4400000001",
+      "quoted_status_id_str": "1849000000000000030",
+      "entities": {"urls": [{"url": "https://t.co/quote1", "expanded_url": "https://twitter.com/other_one/status/1849000000000000030"}]}
+    },
+    "quoted_status_result": {"result": {
+      "__typename": "Tweet",
+      "rest_id": "1849000000000000030",
+      "core": {"user_results": {"result": {"rest_id": "4400000030", "core": {"name": "Other One", "screen_name": "other_one"}}}},
+      "legacy": {
+        "created_at": "Thu Oct 31 22:00:00 +0000 2024",
+        "id_str": "1849000000000000030",
+        "full_text": "The original thought\nsecond line https://t.co/qm1",
+        "entities": {"urls": []},
+        "extended_entities": {"media": [
+          {"type": "photo", "url": "https://t.co/qm1", "media_url_https": "{MEDIA}/media/Quoted.jpg", "original_info": {"width": 800, "height": 600}},
+          {"type": "animated_gif", "url": "https://t.co/qm1", "media_url_https": "{MEDIA}/media/gifthumb.jpg",
+           "video_info": {"variants": [{"content_type": "video/mp4", "bitrate": 0, "url": "{MEDIA}/video/loop.mp4"}]}}
+        ]}
+      }
+    }}
+  }}}}},
+  "1849000000000000004": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet",
+    "rest_id": "1849000000000000004",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "note_tweet": {"is_expandable": true, "note_tweet_results": {"result": {
+      "id": "Tm90ZVR3ZWV0OjE4NDkwMDAwMDAwMDAwMDAwMDQ=",
+      "text": "A long post that goes past the usual length. https://t.co/longlink\n\nIt keeps going with a second paragraph.",
+      "entity_set": {"hashtags": [{"text": "longform"}], "urls": [{"url": "https://t.co/longlink", "expanded_url": "https://example.com/notes"}]}
+    }}},
+    "legacy": {
+      "created_at": "Sat Nov 02 10:00:00 +0000 2024",
+      "id_str": "1849000000000000004",
+      "full_text": "A long post that goes past the usual length. https://t.co/longlink It keeps…",
+      "entities": {"hashtags": [], "urls": [{"url": "https://t.co/longlink", "expanded_url": "https://example.com/notes"}]}
+    }
+  }}}}},
+  "1849000000000000005": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet",
+    "rest_id": "1849000000000000005",
+    "core": {"user_results": {"result": {"rest_id": "4400000005", "core": {"name": "Reposter", "screen_name": "reposter"}}}},
+    "legacy": {
+      "created_at": "Sun Nov 03 10:00:00 +0000 2024",
+      "id_str": "1849000000000000005",
+      "full_text": "RT @sample_person: The original post",
+      "retweeted_status_result": {"result": {
+        "__typename": "Tweet",
+        "rest_id": "1849000000000000050",
+        "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+        "legacy": {"created_at": "Sat Nov 02 09:00:00 +0000 2024", "id_str": "1849000000000000050", "full_text": "The original post", "entities": {}}
+      }}
+    }
+  }}}}},
+  "1849000000000000006": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet", "rest_id": "1849000000000000006",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "legacy": {"created_at": "Mon Nov 04 10:02:00 +0000 2024", "id_str": "1849000000000000006", "full_text": "3/ and the end", "entities": {},
+      "in_reply_to_status_id_str": "1849000000000000007", "in_reply_to_user_id_str": "4400000001", "in_reply_to_screen_name": "sample_person"}
+  }}}}},
+  "1849000000000000007": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet", "rest_id": "1849000000000000007",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "legacy": {"created_at": "Mon Nov 04 10:01:00 +0000 2024", "id_str": "1849000000000000007", "full_text": "2/ the middle", "entities": {},
+      "in_reply_to_status_id_str": "1849000000000000008", "in_reply_to_user_id_str": "4400000001"}
+  }}}}},
+  "1849000000000000008": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet", "rest_id": "1849000000000000008",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "legacy": {"created_at": "Mon Nov 04 10:00:00 +0000 2024", "id_str": "1849000000000000008", "full_text": "1/ a thread starts", "entities": {},
+      "in_reply_to_status_id_str": "1849000000000000009", "in_reply_to_user_id_str": "4400000099"}
+  }}}}},
+  "1849000000000000010": {"status": 200, "body": {"data": {"tweetResult": {"result": {"__typename": "TweetUnavailable", "reason": "NsfwLoggedOut"}}}}},
+  "1849000000000000011": {"status": 200, "body": {"data": {"tweetResult": {"result": {"__typename": "TweetUnavailable", "reason": "NsfwViewerHasNoStatedAge"}}}}},
+  "1849000000000000012": {"status": 200, "body": {"data": {"tweetResult": {"result": {"__typename": "TweetUnavailable", "reason": "Protected"}}}}},
+  "1849000000000000013": {"status": 200, "body": {"data": {"tweetResult": {"result": {"__typename": "TweetTombstone",
+    "tombstone": {"__typename": "TextTombstone", "text": {"rtl": false, "text": "This Post was deleted by the Post author. Learn more", "entities": []}}}}}}},
+  "1849000000000000014": {"status": 200, "body": {"data": {"tweetResult": {"result": {"__typename": "TweetTombstone",
+    "tombstone": {"__typename": "TextTombstone", "text": {"rtl": false, "text": "This Post is from a suspended account. Learn more", "entities": []}}}}}}},
+  "1849000000000000015": {"status": 200, "body": {"data": {"tweetResult": {}}}},
+  "1849000000000000016": {"status": 400, "body": {"errors": [{"message": "The following features cannot be null: rweb_video_screen_enabled", "code": 336}]}},
+  "1849000000000000017": {"status": 429, "headers": ["x-rate-limit-remaining: 0", "x-rate-limit-reset: {RESET}"], "body": {"errors": [{"message": "Rate limit exceeded", "code": 88}]}},
+  "1849000000000000018": {"status": 429, "headers": ["x-rate-limit-reset: {RESET}"], "body": {"errors": [{"message": "Rate limit exceeded", "code": 88}]}},
+  "1849000000000000019": {"status": 200, "body": {"data": {}, "errors": [{"message": "Query: Unspecified"}]}},
+  "1849000000000000020": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet", "rest_id": "1849000000000000020",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "legacy": {"created_at": "Tue Nov 05 10:00:00 +0000 2024", "id_str": "1849000000000000020", "full_text": "Media somewhere else", "entities": {},
+      "extended_entities": {"media": [{"type": "photo", "media_url_https": "https://evil.example/media/a.jpg"}]}}
+  }}}}},
+  "1849000000000000021": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet", "rest_id": "1849000000000000021",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "legacy": {"created_at": "Tue Nov 05 11:00:00 +0000 2024", "id_str": "1849000000000000021", "full_text": "Video that will not download", "entities": {},
+      "extended_entities": {"media": [{"type": "video", "video_info": {"variants": [{"content_type": "video/mp4", "bitrate": 832000, "url": "{MEDIA}/video/broken.mp4"}]}}]}}
+  }}}}},
+  "1849000000000000022": {"status": 200, "body": {"data": {"tweetResult": {"result": {
+    "__typename": "Tweet", "rest_id": "1849000000000000022",
+    "core": {"user_results": {"result": {"rest_id": "4400000001", "core": {"name": "Sample Person", "screen_name": "sample_person"}}}},
+    "article": {"article_results": {"result": {"rest_id": "1849000000000000222", "title": "An article title", "preview_text": "The first lines of the article"}}},
+    "legacy": {"created_at": "Wed Nov 06 10:00:00 +0000 2024", "id_str": "1849000000000000022", "full_text": "https://t.co/art1",
+      "entities": {"urls": [{"url": "https://t.co/art1", "expanded_url": "https://x.com/i/article/1849000000000000222"}]}}
+  }}}}},
+  "1849000000000000023": {"status": 503, "body": {}},
+  "1849000000000000024": {"status": 403, "body": {"errors": [{"message": "Forbidden.", "code": 200}]}}
+}

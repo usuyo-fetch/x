@@ -1,0 +1,85 @@
+{
+  "_source": "computed offline with Node v22 using the getToken formula in vercel/react-tweet packages/react-tweet/src/api/fetch-tweet.ts (main cb5070e, 2026-09-24)",
+  "cases": [
+    {
+      "id": "20",
+      "token": "6dq1a2xwd93"
+    },
+    {
+      "id": "1",
+      "token": "bhi2ay3f28n"
+    },
+    {
+      "id": "9",
+      "token": "2vdikqiurk6"
+    },
+    {
+      "id": "1000",
+      "token": "8v25s32yek"
+    },
+    {
+      "id": "1000000000000000",
+      "token": "353i5ab8p5f"
+    },
+    {
+      "id": "1849000000000000001",
+      "token": "4hcsz1indrr"
+    },
+    {
+      "id": "1983412345678901234",
+      "token": "4t32ngeta2h"
+    },
+    {
+      "id": "2018754322398564384",
+      "token": "4w63qghw4n2"
+    },
+    {
+      "id": "1234567890123456789",
+      "token": "2zqic77uqyk"
+    },
+    {
+      "id": "1100000000000000000",
+      "token": "2nzr2hj3hsi"
+    },
+    {
+      "id": "1585341984679469056",
+      "token": "3uchycv2wqc"
+    },
+    {
+      "id": "1645128765897953280",
+      "token": "3zkbohb9ss2"
+    },
+    {
+      "id": "1700000000000000000",
+      "token": "44cpgxmyurn"
+    },
+    {
+      "id": "999999999999999999",
+      "token": "2f9lc2ug9mm"
+    },
+    {
+      "id": "18446744073709551615",
+      "token": "18ps5lqos4lc"
+    },
+    {
+      "id": "2000000000000000000",
+      "token": "4uj6o5owj98"
+    },
+    {
+      "id": "1987654321098765432",
+      "token": "4tgeeoc83v9"
+    },
+    {
+      "id": "123456789",
+      "token": "ng9m4sqe3h"
+    },
+    {
+      "id": "1063000000000000000",
+      "token": "2krigu3hxuo"
+    },
+    {
+      "id": "1500000000000000001",
+      "token": "3mwe49oefy"
+    }
+  ]
+}

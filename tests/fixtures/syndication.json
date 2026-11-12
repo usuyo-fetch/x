@@ -1,0 +1,46 @@
+{
+  "_source": "Hand-written answers of GET https://cdn.syndication.twimg.com/tweet-result, keyed by the id parameter. Shapes follow vercel/react-tweet main cb5070e (2026-09-24): packages/react-tweet/src/api/types/tweet.ts (Tweet: __typename, id_str, text, created_at ISO 8601, user, entities, mediaDetails, quoted_tweet, parent, in_reply_to_*, note_tweet {id} when truncated, favorite_count, conversation_count), media.ts (MediaDetails: type photo/video/animated_gif, media_url_https, original_info, video_info.variants[].bitrate/content_type/url), user.ts (id_str, name, screen_name), and fetch-tweet.ts (404 and {} mean not found, __typename TweetTombstone). Values are invented. {MEDIA} is replaced with the local media server.",
+  "1849000000000000001": {"status": 200, "body": {
+    "__typename": "Tweet",
+    "id_str": "1849000000000000001",
+    "lang": "en",
+    "created_at": "2024-10-30T12:00:00.000Z",
+    "text": "Two photos &amp; a link https://t.co/link1 #coffee https://t.co/media1",
+    "user": {"id_str": "4400000001", "name": "Sample Person", "screen_name": "sample_person", "profile_image_url_https": "{MEDIA}/profile.jpg"},
+    "entities": {"hashtags": [{"text": "coffee", "indices": [42, 49]}], "urls": [{"url": "https://t.co/link1", "expanded_url": "https://example.com/brew", "display_url": "example.com/brew", "indices": [24, 41]}], "user_mentions": [], "symbols": []},
+    "favorite_count": 10,
+    "conversation_count": 1,
+    "mediaDetails": [
+      {"type": "photo", "url": "https://t.co/media1", "media_url_https": "{MEDIA}/media/PhotoOne.jpg", "original_info": {"width": 1200, "height": 800}},
+      {"type": "photo", "url": "https://t.co/media1", "media_url_https": "{MEDIA}/media/PhotoTwo.png", "original_info": {"width": 640, "height": 640}}
+    ]
+  }},
+  "1849000000000000013": {"status": 200, "body": {"__typename": "TweetTombstone", "tombstone": {"text": {"text": "This Post was deleted by the Post author. Learn more"}}}},
+  "1849000000000000015": {"status": 404, "body": {}},
+  "1849000000000000017": {"status": 200, "body": {
+    "__typename": "Tweet",
+    "id_str": "1849000000000000017",
+    "created_at": "2024-11-07T10:00:00.000Z",
+    "text": "Second part of a long reply that the embed endpoint cuts short…",
+    "user": {"id_str": "4400000001", "name": "Sample Person", "screen_name": "sample_person"},
+    "entities": {"hashtags": [], "urls": []},
+    "note_tweet": {"id": "Tm90ZVR3ZWV0OjE4NDkwMDAwMDAwMDAwMDAwMTc="},
+    "in_reply_to_status_id_str": "1849000000000000170",
+    "in_reply_to_user_id_str": "4400000001",
+    "in_reply_to_screen_name": "sample_person",
+    "parent": {
+      "id_str": "1849000000000000170",
+      "created_at": "2024-11-07T09:59:00.000Z",
+      "text": "First part of the thread",
+      "user": {"id_str": "4400000001", "name": "Sample Person", "screen_name": "sample_person"},
+      "in_reply_to_status_id_str": "1849000000000000171",
+      "in_reply_to_user_id_str": "4400000001",
+      "reply_count": 1, "retweet_count": 0, "favorite_count": 0
+    },
+    "favorite_count": 4,
+    "conversation_count": 2
+  }},
+  "1849000000000000018": {"status": 429, "headers": ["x-rate-limit-reset: {RESET_LATER}"], "body": {}},
+  "1849000000000000024": {"status": 403, "body": {}},
+  "1849000000000000025": {"status": 200, "body": {}}
+}

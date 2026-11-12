@@ -1,0 +1,54 @@
+# X（推特）获取插件（设计见 usuyo 仓库 docs/platforms/x.md）。
+# 单条帖子不用账号：访客令牌调帖子接口，被限流或被拒时退到嵌入用的 syndication 接口。
+# 书签和喜欢由 userscript/ 里的脚本在你的浏览器里交链接给 usuyo；list 只读你下载的官方归档。
+protocol: 1
+id: usuyo-fetch/x
+kind: fetch
+name: X
+description: 按帖子链接取正文、图片、视频和引用的帖子，不用账号；书签和喜欢由你浏览器里的脚本交来，或读你下载的官方归档
+version: 0.1.0
+license: MIT
+maintainers: [fldicoahkiin]
+upstream:
+  - name: twitter-web-exporter（脚本截获书签、喜欢的做法）
+    url: https://github.com/prinsss/twitter-web-exporter
+    license: MIT
+  - name: react-tweet（syndication 的请求）
+    url: https://github.com/vercel/react-tweet
+    license: MIT
+platforms: [x]
+match:
+  - "x.com/*"
+  - "*.x.com/*"
+  - "twitter.com/*"
+  - "*.twitter.com/*"
+  - "t.co/*"
+  - "fxtwitter.com/*"
+  - "fixupx.com/*"
+access: public-web
+login: none
+capabilities:
+  fetch:
+    access: public-web
+    login: none
+    timeout: 30m
+    outputs: [text, images, media:video, meta]
+  list:
+    access: official-export
+    login: none
+    order: unordered
+    files: ["twitter-*.zip"]
+pacing:
+  x: {batch: true, interval: 10s, daily: 300}
+permissions:
+  fs:
+    read: ["${INPUT}"]
+    write: ["${OUT}"]
+  network:
+    mode: allowlist
+    hosts: ["api.x.com", "x.com", "cdn.syndication.twimg.com", "pbs.twimg.com", "video.twimg.com", "t.co"]
+  env: []
+  devices: []
+  gpu: false
+run:
+  command: ["${PLUGIN_DIR}/usuyo-fetch-x"]
