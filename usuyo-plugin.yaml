@@ -54,6 +54,7 @@ methods:
     login: required
     account: own-browser
     delivers: links
+    script: userscript/usuyo-x-saved.user.js
     risk:
       text: 没有使用者被锁的报告
       source: {label: "调研 06 §16.2", url: "https://github.com/usuyo/usuyo/blob/main/docs/research/06-platform-access-and-account-risk.md#162-issue-里的账号问题"}
