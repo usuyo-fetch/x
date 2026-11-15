@@ -87,17 +87,6 @@ methods:
     access: private-api
     login: required
     account: in-usuyo
-  - id: xurl
-    name: 官方 API（xurl）
-    built: false
-    access: official-export
-    login: required
-    account: developer
-    capabilities:
-      list:
-        sources:
-          - {source: "x:bookmarks", title: 书签, action: favorite}
-          - {source: "x:likes", title: 喜欢, action: like}
   - id: iphone
     name: 手机镜像
     built: false

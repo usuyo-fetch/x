@@ -354,7 +354,7 @@ fn manifest_loads_in_the_host_and_routes_every_link_shape() {
     assert!(spec.sites.is_empty());
     assert!(spec.visitors.is_empty());
     assert!(found.fetch[0].header.settings.is_empty());
-    // README 的方法表一行一种，做了的四种：访客、嵌入、浏览器脚本、官方归档
+    // README 的方法表一行一种（方法 id），做了的四种：访客、嵌入、浏览器脚本、官方归档
     let ids: Vec<&str> = spec.methods.iter().map(|m| m.id.as_str()).collect();
     assert_eq!(
         ids,
@@ -366,7 +366,6 @@ fn manifest_loads_in_the_host_and_routes_every_link_shape() {
             "deliver-content",
             "session",
             "signed",
-            "xurl",
             "iphone"
         ]
     );
