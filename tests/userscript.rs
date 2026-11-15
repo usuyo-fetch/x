@@ -58,7 +58,7 @@ fn userscript_reads_no_cookies_and_writes_no_page_storage() {
 fn delivery_code_is_the_xiaohongshu_one() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../xiaohongshu/userscript/usuyo-xhs-saved.user.js"
+        "/../rednote/userscript/usuyo-xhs-saved.user.js"
     );
     let Ok(xhs) = std::fs::read_to_string(path) else {
         panic!("the Xiaohongshu plugin is expected next to this one: {path}");

@@ -385,7 +385,7 @@ fn manifest_loads_in_the_host_and_routes_every_link_shape() {
         usuyo_plugin::HostConfig {
             work_dir: tmp.path().join("work"),
             cache_dir: tmp.path().join("cache"),
-            locale: "zh-CN".into(),
+            locale: usuyo_plugin::Locale::new("zh-CN"),
             limits: usuyo_plugin::CallLimits::default(),
         },
         found.fetch,

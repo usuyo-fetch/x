@@ -15,3 +15,17 @@ X（Twitter）的获取插件，供 [usuyo](https://github.com/usuyo/usuyo) 调�
 | 手机镜像 | `iphone` | 书签、喜欢的链接 | 只在手机的 App 内 | `vision-ui` | 未实现 |
 
 测试：`cargo test`；样例照上游项目源码手写，位于 `tests/fixtures/`。依赖同级目录下 usuyo 仓库的 `usuyo-plugin-kit`。X 与 Twitter 是 X Corp. 的商标，本项目与其无关联。许可证：MIT。
+
+## 开发
+
+`Cargo.toml` 里的 `usuyo-plugin`、`usuyo-plugin-kit` 是对 `https://github.com/usuyo/usuyo` 的 git 依赖，钉在固定的 `rev`。
+
+本地开发时用旁边 `usuyo/` 的工作区代替它们：`usuyo-fetch/.cargo/config.toml`（不进任何插件仓库）写了下面的覆盖，cargo 从当前目录往上找这个文件，在插件文件夹里跑 cargo 就生效；从别处跑要加 `--config <这个文件>`。
+
+```toml
+[patch."https://github.com/usuyo/usuyo"]
+usuyo-plugin = { path = "../usuyo/crates/usuyo-plugin" }
+usuyo-plugin-kit = { path = "../usuyo/crates/usuyo-plugin-kit" }
+```
+
+`Cargo.lock` 记的是覆盖后的路径形式，所以 CI 不加 `--locked` 构建，cargo 只重新锁这两个 usuyo crate。
