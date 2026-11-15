@@ -24,7 +24,7 @@
  * TimelineAddEntries 的 entries[].content.itemContent.tweet_results.result，外面可能多包一层
  * TweetWithVisibilityResults（src/utils/api.ts）。没有抄它的代码，也不带它的自动导出和别的模块。
  *
- * 交给 usuyo 的部分（握手、令牌、只连 127.0.0.1:47615）原样照 usuyo-fetch/xiaohongshu 的
+ * 交给 usuyo 的部分（握手、令牌、只连 127.0.0.1:47615）原样照 usuyo-fetch/rednote 的
  * userscript/usuyo-xhs-saved.user.js 0.3.0：经脚本管理器的 GM_xmlhttpRequest；先握手确认对面是 usuyo，
  * 核对不过就什么都不发，投递令牌只在核对过以后才放进请求头。
  *
